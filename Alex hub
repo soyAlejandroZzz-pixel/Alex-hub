@@ -33,11 +33,8 @@ local Config = {
     KillAll = false,
     JitterAmplitude = 0.8,
     TriggerRadius = 6.0,
-    Headless = false,
-    Korblox = false,
     AntiLag = false,
-    DeleteAvatars = false,
-    FpsCap = 300
+    DeleteAvatars = false
 }
 
 local function SaveConfig()
@@ -2265,11 +2262,8 @@ local function LoadHub()
     local espEnabled = Config.EspEnabled
     local espColor = Color3.fromRGB(Config.EspColorR, Config.EspColorG, Config.EspColorB)
     local espGlow = Config.EspGlow
-    local headlessEnabled = Config.Headless
-    local korbloxEnabled = Config.Korblox
     local antiLagEnabled = Config.AntiLag
     local deleteAvatarsEnabled = Config.DeleteAvatars
-    local fpsCapValue = Config.FpsCap
 
     getgenv().RoxHubTargetPart = nil
 
@@ -2430,61 +2424,7 @@ local function LoadHub()
         end
     end)
 
-    -- Korblox & Headless Panel (with `local` on main file scope, but `applyHeadless` and `applyKorblox` as standard functions without `local`)
-    local CustomVisuals = NewPanel("KORBLOX & HEADLESS")
-    Section(CustomVisuals, "CUSTOMIZACIÓN LOCAL")
-
-    function applyHeadless(on)
-        local char = Player.Character
-        if not char then return end
-        local head = char:FindFirstChild("Head")
-        if head then
-            head.Transparency = on and 1 or 0
-            local face = head:FindFirstChild("face")
-            if face then face.Transparency = on and 1 or 0 end
-            for _, acc in ipairs(char:GetChildren()) do
-                if acc:IsA("Accessory") then
-                    local handle = acc:FindFirstChild("Handle")
-                    if handle then handle.Transparency = on and 1 or 0 end
-                end
-            end
-        end
-    end
-
-    function applyKorblox(on)
-        local char = Player.Character
-        if not char then return end
-        local rLeg = char:FindFirstChild("RightLeg") or char:FindFirstChild("RightLowerLeg")
-        if rLeg and rLeg:IsA("BasePart") then
-            rLeg.Transparency = on and 1 or 0
-        end
-        for _, name in ipairs({"RightUpperLeg", "RightFoot"}) do
-            local part = char:FindFirstChild(name)
-            if part and part:IsA("BasePart") then
-                part.Transparency = on and 1 or 0
-            end
-        end
-    end
-
-    Toggle(CustomVisuals, "HEADLESS (LOCAL)", headlessEnabled, function(v)
-        headlessEnabled = v
-        Config.Headless = v
-        applyHeadless(v)
-    end)
-
-    Toggle(CustomVisuals, "KORBLOX (LOCAL)", korbloxEnabled, function(v)
-        korbloxEnabled = v
-        Config.Korblox = v
-        applyKorblox(v)
-    end)
-
-    Player.CharacterAdded:Connect(function(char)
-        task.wait(0.5)
-        if headlessEnabled then applyHeadless(true) end
-        if korbloxEnabled then applyKorblox(true) end
-    end)
-
-    -- OPTIMIZADOR TAB
+    -- OPTIMIZADOR TAB (Robust Avatar Remover & Anti Lag)
     local Optimizer = NewPanel("OPTIMIZADOR")
     Section(Optimizer, "RENDIMIENTO Y OPTIMIZACIÓN")
 
@@ -2506,25 +2446,41 @@ local function LoadHub()
     end
 
     function removeOtherAvatars(on)
-        task.spawn(function()
-            while deleteAvatarsEnabled do
-                task.wait(0.5)
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if p ~= Player then
-                        local char = p.Character
-                        if char then
-                            for _, child in ipairs(char:GetChildren()) do
-                                if child:IsA("Accessory") or child:IsA("Clothing") or child:IsA("ShirtGraphic") then
-                                    child.Transparency = on and 1 or 0
-                                    if child:FindFirstChild("Handle") then
-                                        child.Handle.Transparency = on and 1 or 0
-                                    end
-                                end
-                            end
-                        end
+        local function cleanChar(char)
+            if not char then return end
+            for _, desc in ipairs(char:GetDescendants()) do
+                if desc:IsA("Accessory") or desc:IsA("Clothing") or desc:IsA("ShirtGraphic") or desc:IsA("BodyColors") then
+                    if on then
+                        desc:Destroy()
+                    end
+                elseif desc:IsA("BasePart") and desc.Name ~= "HumanoidRootPart" then
+                    if desc.Name == "Head" then
+                        local face = desc:FindFirstChild("face")
+                        if face and on then face:Destroy() end
                     end
                 end
             end
+        end
+
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= Player then
+                if p.Character then cleanChar(p.Character) end
+                p.CharacterAdded:Connect(function(c)
+                    if deleteAvatarsEnabled then
+                        task.wait(0.5)
+                        cleanChar(c)
+                    end
+                end)
+            end
+        end
+
+        Players.PlayerAdded:Connect(function(p)
+            p.CharacterAdded:Connect(function(c)
+                if deleteAvatarsEnabled then
+                    task.wait(0.5)
+                    cleanChar(c)
+                end
+            end)
         end)
     end
 
@@ -2538,24 +2494,6 @@ local function LoadHub()
         deleteAvatarsEnabled = v
         Config.DeleteAvatars = v
         if v then removeOtherAvatars(true) end
-    end)
-
-    Slider(Optimizer, "LIMITE DE FPS", 30, 300, fpsCapValue, function(v)
-        fpsCapValue = v
-        Config.FpsCap = v
-    end)
-
-    -- FPS Capper Loop
-    task.spawn(function()
-        local runService = RunService
-        local lastTime = os.clock()
-        runService.RenderStepped:Connect(function()
-            local targetInterval = 1 / math.max(fpsCapValue, 15)
-            while os.clock() - lastTime < targetInterval do
-                task.wait()
-            end
-            lastTime = os.clock()
-        end)
     end)
 
     local Move = NewPanel("MOVEMENT")
@@ -2856,9 +2794,6 @@ local function LoadHub()
         elseif name == "VISUALS" then
             outline(1, 4, 14, 8, 4, 1.5)
             fill(5.5, 5.5, 5, 5, 0, 3)
-        elseif name == "KORBLOX & HEADLESS" then
-            outline(2, 2, 12, 12, 6, 1.5)
-            fill(6, 6, 4, 4, 0, 2)
         elseif name == "OPTIMIZADOR" then
             outline(2, 2, 12, 12, 4, 1.5)
             fill(5, 5, 6, 2, 0, 1)
@@ -2957,7 +2892,7 @@ local function LoadHub()
         end)
     end
 
-    local tabOrder = {"HOME", "AIMBOT", "VISUALS", "KORBLOX & HEADLESS", "OPTIMIZADOR", "MOVEMENT", "ANIMATIONS", "HIGH FARM", "HIGH KILLS", "SETTINGS", "CREDITS"}
+    local tabOrder = {"HOME", "AIMBOT", "VISUALS", "OPTIMIZADOR", "MOVEMENT", "ANIMATIONS", "HIGH FARM", "HIGH KILLS", "SETTINGS", "CREDITS"}
     for i, name in ipairs(tabOrder) do NavItem(name, i) end
     Select("HOME")
 
