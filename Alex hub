@@ -31,7 +31,8 @@ local Config = {
     AutoEventFarm = false,
     KillAll = false,
     JitterAmplitude = 0.8,
-    TriggerRadius = 6.0
+    TriggerRadius = 6.0,
+    Headless = false
 }
 
 local function SaveConfig()
@@ -2268,8 +2269,8 @@ local function LoadHub()
 
     local Aim = NewPanel("AIMBOT")
     Section(Aim, "AUTO SHOOT")
-    local t1 = Toggle(Aim, "AUTO SHOOT NORMAL", autoShootEnabled, function(v) autoShootEnabled = v; Config.AutoShoot = v; refreshMonitor() end)
-    local t2 = Toggle(Aim, "AUTO SHOOT AGRESIVO", autoShootAgresivoEnabled, function(v) autoShootAgresivoEnabled = v; Config.AutoShootAgresivo = v; refreshMonitor() end)
+    Toggle(Aim, "AUTO SHOOT NORMAL", autoShootEnabled, function(v) autoShootEnabled = v; Config.AutoShoot = v; refreshMonitor() end)
+    Toggle(Aim, "AUTO SHOOT AGRESIVO", autoShootAgresivoEnabled, function(v) autoShootAgresivoEnabled = v; Config.AutoShootAgresivo = v; refreshMonitor() end)
 
     local partMap = {["CABEZA"] = "Cabeza", ["TORSO"] = "Torso", ["CUERPO COMPLETO"] = "Cuerpo"}
     local revPartMap = {["Cabeza"] = "CABEZA", ["Torso"] = "TORSO", ["Cuerpo"] = "CUERPO COMPLETO"}
@@ -2529,7 +2530,7 @@ local function LoadHub()
         {"None", 0, 0, 0, 0, 0, 0},
         {"Anthro (Default)", 2510196951, 2510197257, 2510202577, 2510198475, 2510197830, 2510195892},
     }
-    local function asset(id) return "http://www.roblox.com/asset/?id=" + tostring(id) end
+    local function asset(id) return "http://www.roblox.com/asset/?id=" .. id end
 
     Section(Anim, "ANIMACIONES")
     local AnimList
@@ -2556,12 +2557,8 @@ local function LoadHub()
 
     for i, a in ipairs(animData) do
         local ids = {
-            idle1 = "http://www.roblox.com/asset/?id=" .. a[2],
-            idle2 = "http://www.roblox.com/asset/?id=" .. a[3],
-            walk  = "http://www.roblox.com/asset/?id=" .. a[4],
-            run   = "http://www.roblox.com/asset/?id=" .. a[5],
-            jump  = "http://www.roblox.com/asset/?id=" .. a[6],
-            fall  = "http://www.roblox.com/asset/?id=" .. a[7],
+            idle1 = asset(a[2]), idle2 = asset(a[3]), walk = asset(a[4]),
+            run = asset(a[5]), jump = asset(a[6]), fall = asset(a[7]),
         }
         local btn = make("TextButton", {
             Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = Theme.Card, BackgroundTransparency = 0.3,
