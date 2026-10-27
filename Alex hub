@@ -4,6 +4,7 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
 
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
@@ -32,7 +33,11 @@ local Config = {
     KillAll = false,
     JitterAmplitude = 0.8,
     TriggerRadius = 6.0,
-    Headless = false
+    Headless = false,
+    Korblox = false,
+    AntiLag = false,
+    DeleteAvatars = false,
+    FpsCap = 300
 }
 
 local function SaveConfig()
@@ -2168,7 +2173,7 @@ local function LoadHub()
     }, statRow)
     local function StatCard(order, title, value, color)
         local c = make("Frame", {
-            Size = UDim2.new(1 / 3, -6, 1, 0), BackgroundColor3 = Theme.Card, BackgroundTransparency = 0.3,
+            Size = UDim2.new(1 / 4, -6, 1, 0), BackgroundColor3 = Theme.Card, BackgroundTransparency = 0.3,
             BorderSizePixel = 0, LayoutOrder = order,
         }, statRow)
         corner(c, 4)
@@ -2185,11 +2190,12 @@ local function LoadHub()
         }, c)
     end
     StatCard(1, "STATUS", "ONLINE", Theme.Green)
-    local pingValue = StatCard(2, "PING", "...", Theme.Accent)
-    StatCard(3, "BUILD", "STABLE", Theme.Accent)
+    local fpsValue = StatCard(2, "FPS", "...", Theme.Accent)
+    local pingValue = StatCard(3, "PING", "...", Theme.Accent)
+    StatCard(4, "BUILD", "STABLE", Theme.Accent)
 
     task.spawn(function()
-        while pingValue.Parent do
+        while pingValue.Parent and fpsValue.Parent do
             local ping = 0
             pcall(function() ping = math.floor(Player:GetNetworkPing() * 1000) end)
             if ping > 0 then
@@ -2200,7 +2206,11 @@ local function LoadHub()
                 pingValue.Text = "—"
                 pingValue.TextColor3 = Theme.Dim
             end
-            task.wait(1)
+
+            local fps = math.floor(1 / RunService.RenderStepped:Wait())
+            fpsValue.Text = fps .. " FPS"
+            fpsValue.TextColor3 = (fps >= 50 and Theme.Green) or (fps >= 30 and Theme.Accent) or Theme.Orange
+            task.wait(0.5)
         end
     end)
 
@@ -2255,6 +2265,11 @@ local function LoadHub()
     local espEnabled = Config.EspEnabled
     local espColor = Color3.fromRGB(Config.EspColorR, Config.EspColorG, Config.EspColorB)
     local espGlow = Config.EspGlow
+    local headlessEnabled = Config.Headless
+    local korbloxEnabled = Config.Korblox
+    local antiLagEnabled = Config.AntiLag
+    local deleteAvatarsEnabled = Config.DeleteAvatars
+    local fpsCapValue = Config.FpsCap
 
     getgenv().RoxHubTargetPart = nil
 
@@ -2413,6 +2428,134 @@ local function LoadHub()
                 cleanAllESPs()
             end
         end
+    end)
+
+    -- Korblox & Headless Panel (with `local` on main file scope, but `applyHeadless` and `applyKorblox` as standard functions without `local`)
+    local CustomVisuals = NewPanel("KORBLOX & HEADLESS")
+    Section(CustomVisuals, "CUSTOMIZACIÓN LOCAL")
+
+    function applyHeadless(on)
+        local char = Player.Character
+        if not char then return end
+        local head = char:FindFirstChild("Head")
+        if head then
+            head.Transparency = on and 1 or 0
+            local face = head:FindFirstChild("face")
+            if face then face.Transparency = on and 1 or 0 end
+            for _, acc in ipairs(char:GetChildren()) do
+                if acc:IsA("Accessory") then
+                    local handle = acc:FindFirstChild("Handle")
+                    if handle then handle.Transparency = on and 1 or 0 end
+                end
+            end
+        end
+    end
+
+    function applyKorblox(on)
+        local char = Player.Character
+        if not char then return end
+        local rLeg = char:FindFirstChild("RightLeg") or char:FindFirstChild("RightLowerLeg")
+        if rLeg and rLeg:IsA("BasePart") then
+            rLeg.Transparency = on and 1 or 0
+        end
+        for _, name in ipairs({"RightUpperLeg", "RightFoot"}) do
+            local part = char:FindFirstChild(name)
+            if part and part:IsA("BasePart") then
+                part.Transparency = on and 1 or 0
+            end
+        end
+    end
+
+    Toggle(CustomVisuals, "HEADLESS (LOCAL)", headlessEnabled, function(v)
+        headlessEnabled = v
+        Config.Headless = v
+        applyHeadless(v)
+    end)
+
+    Toggle(CustomVisuals, "KORBLOX (LOCAL)", korbloxEnabled, function(v)
+        korbloxEnabled = v
+        Config.Korblox = v
+        applyKorblox(v)
+    end)
+
+    Player.CharacterAdded:Connect(function(char)
+        task.wait(0.5)
+        if headlessEnabled then applyHeadless(true) end
+        if korbloxEnabled then applyKorblox(true) end
+    end)
+
+    -- OPTIMIZADOR TAB
+    local Optimizer = NewPanel("OPTIMIZADOR")
+    Section(Optimizer, "RENDIMIENTO Y OPTIMIZACIÓN")
+
+    function applyAntiLag(on)
+        if on then
+            pcall(function()
+                Lighting.GlobalShadows = false
+                Lighting.FogEnd = 9e9
+                for _, v in ipairs(workspace:GetDescendants()) do
+                    if v:IsA("BasePart") then
+                        v.Material = Enum.Material.SmoothPlastic
+                        v.Reflectance = 0
+                    elseif v:IsA("Decal") or v:IsA("Texture") then
+                        v.Transparency = 1
+                    end
+                end
+            end)
+        end
+    end
+
+    function removeOtherAvatars(on)
+        task.spawn(function()
+            while deleteAvatarsEnabled do
+                task.wait(0.5)
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= Player then
+                        local char = p.Character
+                        if char then
+                            for _, child in ipairs(char:GetChildren()) do
+                                if child:IsA("Accessory") or child:IsA("Clothing") or child:IsA("ShirtGraphic") then
+                                    child.Transparency = on and 1 or 0
+                                    if child:FindFirstChild("Handle") then
+                                        child.Handle.Transparency = on and 1 or 0
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    Toggle(Optimizer, "ANTI LAG", antiLagEnabled, function(v)
+        antiLagEnabled = v
+        Config.AntiLag = v
+        applyAntiLag(v)
+    end)
+
+    Toggle(Optimizer, "ELIMINAR AVATARES (OTROS)", deleteAvatarsEnabled, function(v)
+        deleteAvatarsEnabled = v
+        Config.DeleteAvatars = v
+        if v then removeOtherAvatars(true) end
+    end)
+
+    Slider(Optimizer, "LIMITE DE FPS", 30, 300, fpsCapValue, function(v)
+        fpsCapValue = v
+        Config.FpsCap = v
+    end)
+
+    -- FPS Capper Loop
+    task.spawn(function()
+        local runService = RunService
+        local lastTime = os.clock()
+        runService.RenderStepped:Connect(function()
+            local targetInterval = 1 / math.max(fpsCapValue, 15)
+            while os.clock() - lastTime < targetInterval do
+                task.wait()
+            end
+            lastTime = os.clock()
+        end)
     end)
 
     local Move = NewPanel("MOVEMENT")
@@ -2713,6 +2856,12 @@ local function LoadHub()
         elseif name == "VISUALS" then
             outline(1, 4, 14, 8, 4, 1.5)
             fill(5.5, 5.5, 5, 5, 0, 3)
+        elseif name == "KORBLOX & HEADLESS" then
+            outline(2, 2, 12, 12, 6, 1.5)
+            fill(6, 6, 4, 4, 0, 2)
+        elseif name == "OPTIMIZADOR" then
+            outline(2, 2, 12, 12, 4, 1.5)
+            fill(5, 5, 6, 2, 0, 1)
         elseif name == "MOVEMENT" then
             fill(1.5, 7.25, 11, 1.5, 0, 1)
             fill(9, 5.25, 6, 1.5, 45, 1)
@@ -2808,7 +2957,7 @@ local function LoadHub()
         end)
     end
 
-    local tabOrder = {"HOME", "AIMBOT", "VISUALS", "MOVEMENT", "ANIMATIONS", "HIGH FARM", "HIGH KILLS", "SETTINGS", "CREDITS"}
+    local tabOrder = {"HOME", "AIMBOT", "VISUALS", "KORBLOX & HEADLESS", "OPTIMIZADOR", "MOVEMENT", "ANIMATIONS", "HIGH FARM", "HIGH KILLS", "SETTINGS", "CREDITS"}
     for i, name in ipairs(tabOrder) do NavItem(name, i) end
     Select("HOME")
 
